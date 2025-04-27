@@ -88,12 +88,12 @@ if st.sidebar.button("🔄 Reset Forecasts"):
     st.session_state.clear()  # Clear session state to reset the app
 
 # Filter data
-df_hist = df_actuals[(df_actuals['Store'] == store_selected) &
-                     (df_actuals['Item'] == item_selected) &
+df_hist = df_actuals[(df_actuals['Store'] == store_selected) & 
+                     (df_actuals['Item'] == item_selected) & 
                      (df_actuals['Region'] == region_selected)]
 
-df_future = df_forecasts[(df_forecasts['Store'] == store_selected) &
-                         (df_forecasts['Item'] == item_selected) &
+df_future = df_forecasts[(df_forecasts['Store'] == store_selected) & 
+                         (df_forecasts['Item'] == item_selected) & 
                          (df_forecasts['Region'] == region_selected)]
 
 # -----------------------------
@@ -128,11 +128,17 @@ with tab1:
         use_container_width=True
     )
 
+    # Save edited forecast data to session state
+    if 'edited_forecast_df' in st.session_state:
+        st.session_state.edited_forecast_df = edited_forecast_df
+    else:
+        st.session_state.edited_forecast_df = forecast_df
+
     # ➡️ Plot the LINE CHART using edited_forecast_df
     st.subheader("Forecast Line Chart")
 
     import altair as alt
-    chart = alt.Chart(edited_forecast_df.melt('Week', var_name='Model', value_name='Forecast')).mark_line(point=True).encode(
+    chart = alt.Chart(st.session_state.edited_forecast_df.melt('Week', var_name='Model', value_name='Forecast')).mark_line(point=True).encode(
         x='Week:T',
         y='Forecast:Q',
         color='Model:N'
@@ -219,3 +225,4 @@ with tab6:
 with tab7:
     st.title("📝 Historical Promo/Event Weeks")
     promo_table = df_hist[(df_hist['Promo'] == 1)]
+    st.dataframe(promo_table)
