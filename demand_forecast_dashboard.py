@@ -114,55 +114,42 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # -----------------------------
 
 with tab1:
-    st.title("📈 Forecast and Actuals Viewer")
+    st.title("Demand Forecast Analysis")
 
-    # Editable forecasts
-    st.subheader("Edit Forecasts:")
-    for model in range(1,6):
-        df_future[f"Model_{model}_Forecast"] = st.number_input(
-            f"Model {model} Forecast for next week",
-            value=int(df_future.iloc[0][f"Model_{model}_Forecast"]),
-            key=f"forecast_model_{model}"
-        )
+    # ➡️ INSERT THE EDITABLE TABLE *BEFORE* THE LINE CHART
+    st.subheader("Editable Forecast Table for Next 6 Weeks")
 
-    # Merge actuals and forecasts
-    df_plot = pd.concat([df_hist[['Week', 'Actuals', 'Promo', 'Event']], 
-                         df_future[['Week'] + [f"Model_{i}_Forecast" for i in range(1,6)]]], axis=0)
+    # (Prepare your forecast dataframe for 6 weeks for the selected item/store)
+    forecasts = {
+        'Week': ['2025-05-05', '2025-05-12', '2025-05-19', '2025-05-26', '2025-06-02', '2025-06-09'],
+        'Model_1': [100, 120, 110, 130, 125, 140],
+        'Model_2': [95, 115, 105, 125, 120, 135],
+        'Model_3': [90, 110, 100, 120, 115, 130]
+    }
+    forecast_df = pd.DataFrame(forecasts)
 
-    fig = go.Figure()
+    edited_forecast_df = st.data_editor(
+        forecast_df,
+        num_rows="dynamic",
+        use_container_width=True
+    )
 
-    fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot['Actuals'], mode='lines+markers', name='Actuals'))
+    # ➡️ Now plot the LINE CHART using edited_forecast_df instead of forecast_df
+    st.subheader("Forecast Line Chart")
 
-    for model in range(1,6):
-        fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot.get(f'Model_{model}_Forecast', np.nan),
-                                 mode='lines', name=f'Model {model} Forecast'))
+    import altair as alt
+    chart = alt.Chart(edited_forecast_df.melt('Week', var_name='Model', value_name='Forecast')).mark_line(point=True).encode(
+        x='Week:T',
+        y='Forecast:Q',
+        color='Model:N'
+    ).properties(
+        width=800,
+        height=400
+    )
 
-    # Promo and Event bars
-    promo_weeks = df_plot[df_plot['Promo'] == 1]['Week']
-    event_weeks = df_plot[df_plot['Event'] == 1]['Week']
+    st.altair_chart(chart, use_container_width=True)
 
-    for week in promo_weeks:
-        fig.add_vrect(x0=week - pd.Timedelta(days=3), x1=week + pd.Timedelta(days=3),
-                      fillcolor="LightGreen", opacity=0.3, line_width=0)
 
-    for week in event_weeks:
-        fig.add_vrect(x0=week - pd.Timedelta(days=3), x1=week + pd.Timedelta(days=3),
-                      fillcolor="LightSkyBlue", opacity=0.3, line_width=0)
-
-    # Moving averages
-    if moving_avg_weeks:
-        for window in moving_avg_weeks:
-            df_plot[f"MA_{window}"] = df_plot['Actuals'].rolling(window=window).mean()
-            fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot[f"MA_{window}"],
-                                     mode='lines', name=f'{window}-Week MA', line=dict(dash='dash')))
-
-    fig.update_layout(title="Demand Forecast vs Actuals",
-                      xaxis_title="Week",
-                      yaxis_title="Units",
-                      height=600,
-                      template="plotly_white")
-    
-    st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------
 # 5. Tab 2 - WMAPE Comparison
