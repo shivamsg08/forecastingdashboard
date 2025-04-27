@@ -83,6 +83,7 @@ moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3,5,10])
 
 # Reset Button
 if st.sidebar.button("🔄 Reset Forecasts"):
+    # Reset forecast to the original values
     df_forecasts = original_forecasts.copy()
     st.success("Forecasts have been reset!")
     st.session_state.clear()  # Clear session state to reset the app
@@ -99,6 +100,7 @@ df_future = df_forecasts[(df_forecasts['Store'] == store_selected) &
 # -----------------------------
 # 3. Tabs Layout
 # -----------------------------
+# Add all your tabs and forecast adjustment logic here.
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 Forecast Adjustment",
