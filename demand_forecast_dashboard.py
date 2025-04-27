@@ -136,9 +136,8 @@ with tab1:
         use_container_width=True
     )
 
-    # Check if the edited data is valid before updating session state
-    if edited_forecast_df is not None:
-        st.session_state.df_forecasts.update(edited_forecast_df)
+    # Save edited forecast data to session state
+    st.session_state.df_forecasts = edited_forecast_df
 
     # ➡️ Plot the LINE CHART using edited_forecast_df
     st.subheader("Forecast Line Chart")
@@ -147,7 +146,7 @@ with tab1:
     chart = alt.Chart(st.session_state.df_forecasts.melt('Week', var_name='Model', value_name='Forecast')).mark_line(point=True).encode(
         x='Week:T',
         y='Forecast:Q',
-        color='Model:N'
+        color='Model:N'  # Remove store and region from the encoding
     ).properties(
         width=800,
         height=400
