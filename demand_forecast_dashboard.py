@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.graph_objs as go
 import datetime
 import random
-import plotly.graph_objects as go
 import ta
 
 # -----------------------------
@@ -79,35 +79,26 @@ st.sidebar.title("🔎 Filters")
 store_selected = st.sidebar.selectbox("Select Store", df_actuals['Store'].unique())
 item_selected = st.sidebar.selectbox("Select Item", df_actuals['Item'].unique())
 region_selected = st.sidebar.selectbox("Select Region", df_actuals['Region'].unique())
-moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3, 5, 10])
-
-# -----------------------------
-# 3. Reset Button and Logic
-# -----------------------------
-
-if 'df_forecasts' not in st.session_state:
-    st.session_state.df_forecasts = df_forecasts
+moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3,5,10])
 
 # Reset Button
 if st.sidebar.button("🔄 Reset Forecasts"):
-    # Reset forecast to the original values
-    st.session_state.df_forecasts = original_forecasts.copy()
+    df_forecasts = original_forecasts.copy()
+    st.success("Forecasts have been reset!")
 
-# -----------------------------
-# 4. Filter Data
-# -----------------------------
-
-df_hist = df_actuals[(df_actuals['Store'] == store_selected) & 
-                     (df_actuals['Item'] == item_selected) & 
+# Filter data
+df_hist = df_actuals[(df_actuals['Store'] == store_selected) &
+                     (df_actuals['Item'] == item_selected) &
                      (df_actuals['Region'] == region_selected)]
 
-df_future = st.session_state.df_forecasts[(st.session_state.df_forecasts['Store'] == store_selected) & 
-                                          (st.session_state.df_forecasts['Item'] == item_selected) & 
-                                          (st.session_state.df_forecasts['Region'] == region_selected)]
+df_future = df_forecasts[(df_forecasts['Store'] == store_selected) &
+                         (df_forecasts['Item'] == item_selected) &
+                         (df_forecasts['Region'] == region_selected)]
 
 # -----------------------------
-# 5. Tabs Layout
+# 3. Tabs Layout
 # -----------------------------
+
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 Forecast Adjustment",
     "📊 WMAPE Comparison",
@@ -119,52 +110,71 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 ])
 
 # -----------------------------
-# 6. Tab 1 - Forecast Adjustment
+# 4. Tab 1 - Forecast Adjustment
 # -----------------------------
 
 with tab1:
-    st.title("Demand Forecast Analysis")
+    st.title("📈 Forecast and Actuals Viewer")
 
-    # ➡️ Use df_future to fill the forecast table dynamically
-    forecast_columns = ['Week'] + [col for col in df_future.columns if 'Model_' in col]
-    forecast_df = df_future[forecast_columns].copy()
+    # Editable forecasts
+    st.subheader("Edit Forecasts:")
+    for model in range(1,6):
+        df_future[f"Model_{model}_Forecast"] = st.number_input(
+            f"Model {model} Forecast for next week",
+            value=int(df_future.iloc[0][f"Model_{model}_Forecast"]),
+            key=f"forecast_model_{model}"
+        )
 
-    st.subheader("Editable Forecast Table for Next 6 Weeks")
-    edited_forecast_df = st.data_editor(
-        forecast_df,
-        num_rows="dynamic",
-        use_container_width=True
-    )
+    # Merge actuals and forecasts
+    df_plot = pd.concat([df_hist[['Week', 'Actuals', 'Promo', 'Event']], 
+                         df_future[['Week'] + [f"Model_{i}_Forecast" for i in range(1,6)]]], axis=0)
 
-    # Save edited forecast data to session state
-    st.session_state.df_forecasts = edited_forecast_df
+    fig = go.Figure()
 
-    # ➡️ Plot the LINE CHART using edited_forecast_df
-    st.subheader("Forecast Line Chart")
+    fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot['Actuals'], mode='lines+markers', name='Actuals'))
 
-    import altair as alt
-    chart = alt.Chart(st.session_state.df_forecasts.melt('Week', var_name='Model', value_name='Forecast')).mark_line(point=True).encode(
-        x='Week:T',
-        y='Forecast:Q',
-        color='Model:N'  # Remove store and region from the encoding
-    ).properties(
-        width=800,
-        height=400
-    )
+    for model in range(1,6):
+        fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot.get(f'Model_{model}_Forecast', np.nan),
+                                 mode='lines', name=f'Model {model} Forecast'))
 
-    st.altair_chart(chart, use_container_width=True)
+    # Promo and Event bars
+    promo_weeks = df_plot[df_plot['Promo'] == 1]['Week']
+    event_weeks = df_plot[df_plot['Event'] == 1]['Week']
+
+    for week in promo_weeks:
+        fig.add_vrect(x0=week - pd.Timedelta(days=3), x1=week + pd.Timedelta(days=3),
+                      fillcolor="LightGreen", opacity=0.3, line_width=0)
+
+    for week in event_weeks:
+        fig.add_vrect(x0=week - pd.Timedelta(days=3), x1=week + pd.Timedelta(days=3),
+                      fillcolor="LightSkyBlue", opacity=0.3, line_width=0)
+
+    # Moving averages
+    if moving_avg_weeks:
+        for window in moving_avg_weeks:
+            df_plot[f"MA_{window}"] = df_plot['Actuals'].rolling(window=window).mean()
+            fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot[f"MA_{window}"],
+                                     mode='lines', name=f'{window}-Week MA', line=dict(dash='dash')))
+
+    fig.update_layout(title="Demand Forecast vs Actuals",
+                      xaxis_title="Week",
+                      yaxis_title="Units",
+                      height=600,
+                      template="plotly_white")
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------
-# 7. Tab 2 - WMAPE Comparison
+# 5. Tab 2 - WMAPE Comparison
 # -----------------------------
 
 with tab2:
     st.title("📊 WMAPE Across Models")
 
     wmape_scores = {}
-    for model in range(1, 6):
+    for model in range(1,6):
         pred = df_future[f"Model_{model}_Forecast"].values
-        actual = df_hist['Actuals'].values[-len(pred):] if len(df_hist) >= len(pred) else df_hist['Actuals'].values
+        actual = df_hist['Actuals'].values[-len(pred):]
         wmape = np.sum(np.abs(actual - pred)) / np.sum(actual) if np.sum(actual) != 0 else 0
         wmape_scores[f'Model {model}'] = wmape
 
@@ -174,7 +184,7 @@ with tab2:
     st.plotly_chart(fig_wmape, use_container_width=True)
 
 # -----------------------------
-# 8. Tabs 3-7: Advanced Metrics
+# 6. Tab 3-7: Advanced Metrics
 # -----------------------------
 
 with tab3:
@@ -219,8 +229,7 @@ with tab5:
     st.title("🚀 Sharpe Ratio Analysis")
     returns = df_hist['Actuals'].pct_change()
     sharpe_ratio = returns.mean() / returns.std() if returns.std() != 0 else 0
-    sharpe_ratio_annualized = sharpe_ratio * np.sqrt(52)  # Annualized Sharpe Ratio for weekly data
-    st.metric("Annualized Sharpe Ratio", f"{sharpe_ratio_annualized:.2f}")
+    st.metric("Sharpe Ratio (Demand Growth Stability)", f"{sharpe_ratio:.2f}")
 
 with tab6:
     st.title("🧠 Volume Impact of Promotions")
@@ -229,5 +238,6 @@ with tab6:
 
 with tab7:
     st.title("📝 Historical Promo/Event Weeks")
-    promo_table = df_hist[(df_hist['Promo'] == 1)]
+    promo_table = df_hist[(df_hist['Promo'] == 1) | (df_hist['Event'] == 1)][['Week', 'Promo', 'Event', 'Actuals']]
     st.dataframe(promo_table)
+
