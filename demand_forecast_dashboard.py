@@ -1,5 +1,5 @@
 # Install these if missing
-!pip install streamlit plotly pandas ta
+# pip install streamlit plotly pandas ta
 
 import streamlit as st
 import pandas as pd
