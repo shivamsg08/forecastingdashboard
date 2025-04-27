@@ -81,27 +81,34 @@ item_selected = st.sidebar.selectbox("Select Item", df_actuals['Item'].unique())
 region_selected = st.sidebar.selectbox("Select Region", df_actuals['Region'].unique())
 moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3,5,10])
 
+# -----------------------------
+# 3. Reset Button and Logic
+# -----------------------------
+
+if 'df_forecasts' not in st.session_state:
+    st.session_state.df_forecasts = df_forecasts
+
 # Reset Button
 if st.sidebar.button("🔄 Reset Forecasts"):
     # Reset forecast to the original values
-    df_forecasts = original_forecasts.copy()
+    st.session_state.df_forecasts = original_forecasts.copy()
     st.success("Forecasts have been reset!")
-    st.session_state.clear()  # Clear session state to reset the app
 
-# Filter data
+# -----------------------------
+# 4. Filter Data
+# -----------------------------
+
 df_hist = df_actuals[(df_actuals['Store'] == store_selected) & 
                      (df_actuals['Item'] == item_selected) & 
                      (df_actuals['Region'] == region_selected)]
 
-df_future = df_forecasts[(df_forecasts['Store'] == store_selected) & 
-                         (df_forecasts['Item'] == item_selected) & 
-                         (df_forecasts['Region'] == region_selected)]
+df_future = st.session_state.df_forecasts[(st.session_state.df_forecasts['Store'] == store_selected) & 
+                                          (st.session_state.df_forecasts['Item'] == item_selected) & 
+                                          (st.session_state.df_forecasts['Region'] == region_selected)]
 
 # -----------------------------
-# 3. Tabs Layout
+# 5. Tabs Layout
 # -----------------------------
-# Add all your tabs and forecast adjustment logic here.
-
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 Forecast Adjustment",
     "📊 WMAPE Comparison",
@@ -113,7 +120,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 ])
 
 # -----------------------------
-# 4. Tab 1 - Forecast Adjustment
+# 6. Tab 1 - Forecast Adjustment
 # -----------------------------
 
 with tab1:
@@ -152,7 +159,7 @@ with tab1:
     st.altair_chart(chart, use_container_width=True)
 
 # -----------------------------
-# 5. Tab 2 - WMAPE Comparison
+# 7. Tab 2 - WMAPE Comparison
 # -----------------------------
 
 with tab2:
@@ -171,7 +178,7 @@ with tab2:
     st.plotly_chart(fig_wmape, use_container_width=True)
 
 # -----------------------------
-# 6. Tab 3-7: Advanced Metrics
+# 8. Tabs 3-7: Advanced Metrics
 # -----------------------------
 
 with tab3:
