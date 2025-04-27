@@ -86,7 +86,6 @@ if st.sidebar.button("🔄 Reset Forecasts"):
     df_forecasts = original_forecasts.copy()
     st.success("Forecasts have been reset!")
     st.session_state.clear()  # Clear session state to reset the app
-    st.experimental_rerun()  # Optional: if you want to refresh the page, this can be used
 
 # Filter data
 df_hist = df_actuals[(df_actuals['Store'] == store_selected) &
