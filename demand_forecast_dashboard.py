@@ -1,10 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objs as go
 import datetime
 import random
-import ta
 
 # -----------------------------
 # 1. Simulate data
@@ -79,7 +77,7 @@ st.sidebar.title("🔎 Filters")
 store_selected = st.sidebar.selectbox("Select Store", df_actuals['Store'].unique())
 item_selected = st.sidebar.selectbox("Select Item", df_actuals['Item'].unique())
 region_selected = st.sidebar.selectbox("Select Region", df_actuals['Region'].unique())
-moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3,5,10])
+moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3, 5, 10])
 
 # -----------------------------
 # 3. Reset Button and Logic
@@ -137,16 +135,13 @@ with tab1:
     )
 
     # Save edited forecast data to session state
-    if 'edited_forecast_df' in st.session_state:
-        st.session_state.edited_forecast_df = edited_forecast_df
-    else:
-        st.session_state.edited_forecast_df = forecast_df
+    st.session_state.df_forecasts = edited_forecast_df
 
     # ➡️ Plot the LINE CHART using edited_forecast_df
     st.subheader("Forecast Line Chart")
 
     import altair as alt
-    chart = alt.Chart(st.session_state.edited_forecast_df.melt('Week', var_name='Model', value_name='Forecast')).mark_line(point=True).encode(
+    chart = alt.Chart(st.session_state.df_forecasts.melt('Week', var_name='Model', value_name='Forecast')).mark_line(point=True).encode(
         x='Week:T',
         y='Forecast:Q',
         color='Model:N'
