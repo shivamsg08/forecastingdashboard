@@ -136,8 +136,9 @@ with tab1:
         use_container_width=True
     )
 
-    # Save edited forecast data to session state
-    st.session_state.df_forecasts = edited_forecast_df
+    # Check if the edited data is valid before updating session state
+    if edited_forecast_df is not None:
+        st.session_state.df_forecasts.update(edited_forecast_df)
 
     # ➡️ Plot the LINE CHART using edited_forecast_df
     st.subheader("Forecast Line Chart")
