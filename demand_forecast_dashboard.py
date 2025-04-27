@@ -218,4 +218,4 @@ with tab6:
 
 with tab7:
     st.title("📝 Historical Promo/Event Weeks")
-    promo_table = df_hist[(df_hist['Promo'] == 1)
+    promo_table = df_hist[(df_hist['Promo'] == 1)]
