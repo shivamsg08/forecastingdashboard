@@ -85,6 +85,7 @@ moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3,5,10])
 if st.sidebar.button("🔄 Reset Forecasts"):
     df_forecasts = original_forecasts.copy()
     st.success("Forecasts have been reset!")
+    st.experimental_rerun()  # Rerun to reset the state
 
 # Filter data
 df_hist = df_actuals[(df_actuals['Store'] == store_selected) &
@@ -116,25 +117,18 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 with tab1:
     st.title("Demand Forecast Analysis")
 
-    # ➡️ INSERT THE EDITABLE TABLE *BEFORE* THE LINE CHART
+    # ➡️ Use df_future to fill the forecast table dynamically
+    forecast_columns = ['Week'] + [col for col in df_future.columns if 'Model_' in col]
+    forecast_df = df_future[forecast_columns].copy()
+
     st.subheader("Editable Forecast Table for Next 6 Weeks")
-
-    # (Prepare your forecast dataframe for 6 weeks for the selected item/store)
-    forecasts = {
-        'Week': ['2025-05-05', '2025-05-12', '2025-05-19', '2025-05-26', '2025-06-02', '2025-06-09'],
-        'Model_1': [100, 120, 110, 130, 125, 140],
-        'Model_2': [95, 115, 105, 125, 120, 135],
-        'Model_3': [90, 110, 100, 120, 115, 130]
-    }
-    forecast_df = pd.DataFrame(forecasts)
-
     edited_forecast_df = st.data_editor(
         forecast_df,
         num_rows="dynamic",
         use_container_width=True
     )
 
-    # ➡️ Now plot the LINE CHART using edited_forecast_df instead of forecast_df
+    # ➡️ Plot the LINE CHART using edited_forecast_df
     st.subheader("Forecast Line Chart")
 
     import altair as alt
@@ -149,8 +143,6 @@ with tab1:
 
     st.altair_chart(chart, use_container_width=True)
 
-
-
 # -----------------------------
 # 5. Tab 2 - WMAPE Comparison
 # -----------------------------
@@ -159,9 +151,9 @@ with tab2:
     st.title("📊 WMAPE Across Models")
 
     wmape_scores = {}
-    for model in range(1,6):
+    for model in range(1, 6):
         pred = df_future[f"Model_{model}_Forecast"].values
-        actual = df_hist['Actuals'].values[-len(pred):]
+        actual = df_hist['Actuals'].values[-len(pred):] if len(df_hist) >= len(pred) else df_hist['Actuals'].values
         wmape = np.sum(np.abs(actual - pred)) / np.sum(actual) if np.sum(actual) != 0 else 0
         wmape_scores[f'Model {model}'] = wmape
 
@@ -216,7 +208,8 @@ with tab5:
     st.title("🚀 Sharpe Ratio Analysis")
     returns = df_hist['Actuals'].pct_change()
     sharpe_ratio = returns.mean() / returns.std() if returns.std() != 0 else 0
-    st.metric("Sharpe Ratio (Demand Growth Stability)", f"{sharpe_ratio:.2f}")
+    sharpe_ratio_annualized = sharpe_ratio * np.sqrt(52)  # Annualized Sharpe Ratio for weekly data
+    st.metric("Annualized Sharpe Ratio", f"{sharpe_ratio_annualized:.2f}")
 
 with tab6:
     st.title("🧠 Volume Impact of Promotions")
@@ -225,6 +218,4 @@ with tab6:
 
 with tab7:
     st.title("📝 Historical Promo/Event Weeks")
-    promo_table = df_hist[(df_hist['Promo'] == 1) | (df_hist['Event'] == 1)][['Week', 'Promo', 'Event', 'Actuals']]
-    st.dataframe(promo_table)
-
+    promo_table = df_hist[(df_hist['Promo'] == 1)
