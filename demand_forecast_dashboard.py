@@ -1,176 +1,243 @@
-# Install these if missing
-# pip install streamlit plotly pandas ta
-
 import streamlit as st
 import pandas as pd
-import plotly.graph_objs as go
 import numpy as np
-import ta  # For technical analysis metrics
+import plotly.graph_objs as go
+import datetime
+import random
+import ta
 
-# --------- Load your data (Sample for now) ----------
-np.random.seed(42)
-weeks = pd.date_range('2023-01-01', periods=52, freq='W')
-data = pd.DataFrame({
-    'Store': np.random.choice(['Store A', 'Store B', 'Store C'], 52),
-    'Item': np.random.choice(['Item X', 'Item Y', 'Item Z'], 52),
-    'Region': np.random.choice(['North', 'South', 'East', 'West'], 52),
-    'Week': weeks,
-    'Forecast_Model1': np.random.randint(80, 120, 52),
-    'Forecast_Model2': np.random.randint(85, 115, 52),
-    'Forecast_Model3': np.random.randint(78, 125, 52),
-    'Forecast_Model4': np.random.randint(82, 118, 52),
-    'Forecast_Model5': np.random.randint(80, 130, 52),
-    'Actual': np.random.randint(85, 125, 52),
-    'Promo_Week': np.random.choice([0, 1], 52, p=[0.8, 0.2]),
-    'Event_Week': np.random.choice([0, 1], 52, p=[0.9, 0.1])
-})
+# -----------------------------
+# 1. Simulate data
+# -----------------------------
 
-# --------- Sidebar Filters ----------
-st.sidebar.title("Filters")
-selected_store = st.sidebar.selectbox("Select Store", sorted(data['Store'].unique()))
-selected_item = st.sidebar.selectbox("Select Item", sorted(data['Item'].unique()))
-selected_region = st.sidebar.selectbox("Select Region", sorted(data['Region'].unique()))
-selected_models = st.sidebar.multiselect("Select Forecast Models", 
-                                         ['Forecast_Model1', 'Forecast_Model2', 'Forecast_Model3', 'Forecast_Model4', 'Forecast_Model5'],
-                                         default=['Forecast_Model1'])
+@st.cache_data
+def simulate_data():
+    np.random.seed(42)
+    random.seed(42)
 
-# Filtered data
-filtered_data = data[(data['Store'] == selected_store) & 
-                     (data['Item'] == selected_item) & 
-                     (data['Region'] == selected_region)].sort_values('Week')
+    start_date = datetime.date(2021, 4, 1)
+    weeks = pd.date_range(start=start_date, periods=156, freq='W')
 
-# --------- Editable Table ----------
-st.title("📈 Demand Forecast Dashboard")
-st.subheader("Editable Forecast Table")
-edited_data = st.data_editor(
-    filtered_data[selected_models + ['Actual', 'Promo_Week', 'Event_Week', 'Week']],
-    num_rows="dynamic",
-    use_container_width=True
-)
+    stores = [f"Store_{i}" for i in range(1, 21)]
+    items = [f"Item_{i}" for i in range(1, 16)]
+    regions = ['North', 'South', 'East', 'West']
 
-# --------- Line Chart ----------
-st.subheader("Forecast vs Actual Trend")
+    data = []
+    for store in stores:
+        for item in items:
+            region = random.choice(regions)
+            sales = np.random.poisson(lam=random.randint(80, 200), size=len(weeks))
 
-fig = go.Figure()
+            promo_weeks = random.sample(range(len(weeks)), k=20)
+            event_weeks = random.sample(range(len(weeks)), k=15)
 
-# Plot all selected forecasts
-for model in selected_models:
-    fig.add_trace(go.Scatter(
-        x=edited_data['Week'], 
-        y=edited_data[model], 
-        mode='lines+markers',
-        name=model
-    ))
+            for idx, week in enumerate(weeks):
+                data.append({
+                    "Store": store,
+                    "Item": item,
+                    "Region": region,
+                    "Week": week,
+                    "Actuals": sales[idx],
+                    "Promo": 1 if idx in promo_weeks else 0,
+                    "Event": 1 if idx in event_weeks else 0
+                })
 
-# Actuals
-fig.add_trace(go.Scatter(
-    x=edited_data['Week'],
-    y=edited_data['Actual'],
-    mode='lines+markers',
-    name='Actual',
-    line=dict(color='black', dash='dash')
-))
+    df_actuals = pd.DataFrame(data)
 
-# Promo Weeks as bars
-promo_weeks = edited_data[edited_data['Promo_Week'] == 1]
-for pw in promo_weeks['Week']:
-    fig.add_vrect(x0=pw, x1=pw + pd.Timedelta(days=7),
-                  fillcolor="LightSkyBlue", opacity=0.3, line_width=0)
+    # Forecasts for next 6 weeks
+    forecast_weeks = pd.date_range(start=weeks[-1] + datetime.timedelta(days=7), periods=6, freq='W')
+    forecast_data = []
+    for store in stores:
+        for item in items:
+            for week in forecast_weeks:
+                for model in range(1, 6):
+                    forecast_data.append({
+                        "Store": store,
+                        "Item": item,
+                        "Region": random.choice(regions),
+                        "Week": week,
+                        f"Model_{model}_Forecast": np.random.randint(90, 200)
+                    })
 
-# Event Weeks as bars
-event_weeks = edited_data[edited_data['Event_Week'] == 1]
-for ew in event_weeks['Week']:
-    fig.add_vrect(x0=ew, x1=ew + pd.Timedelta(days=7),
-                  fillcolor="LightGreen", opacity=0.3, line_width=0)
+    df_forecasts = pd.DataFrame(forecast_data)
+    df_forecasts = df_forecasts.groupby(["Store", "Item", "Region", "Week"]).sum().reset_index()
 
-fig.update_layout(
-    title="Demand Trend with Promo & Event Weeks",
-    xaxis_title="Week",
-    yaxis_title="Demand",
-    template="plotly_white",
-    height=600
-)
-st.plotly_chart(fig, use_container_width=True)
+    return df_actuals, df_forecasts
 
-# --------- Historical Promotions ----------
-st.subheader("📋 Historical Promotions Table")
-promo_hist = edited_data[edited_data['Promo_Week'] == 1]
-st.dataframe(promo_hist[['Week', 'Actual']])
+df_actuals, df_forecasts = simulate_data()
 
-# --------- Tabs for Advanced Metrics ----------
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "Wmape Comparison", 
-    "Demand Metrics",
-    "RSI",
-    "MACD",
-    "Bollinger Bands",
-    "Sharpe Ratio"
+# Save original forecasts for reset
+original_forecasts = df_forecasts.copy()
+
+# -----------------------------
+# 2. UI - Sidebar Filters
+# -----------------------------
+
+st.set_page_config(page_title="Demand Forecasting Dashboard", layout="wide")
+
+st.sidebar.title("🔎 Filters")
+store_selected = st.sidebar.selectbox("Select Store", df_actuals['Store'].unique())
+item_selected = st.sidebar.selectbox("Select Item", df_actuals['Item'].unique())
+region_selected = st.sidebar.selectbox("Select Region", df_actuals['Region'].unique())
+moving_avg_weeks = st.sidebar.multiselect("Select Moving Averages", [3,5,10])
+
+# Reset Button
+if st.sidebar.button("🔄 Reset Forecasts"):
+    df_forecasts = original_forecasts.copy()
+    st.success("Forecasts have been reset!")
+
+# Filter data
+df_hist = df_actuals[(df_actuals['Store'] == store_selected) &
+                     (df_actuals['Item'] == item_selected) &
+                     (df_actuals['Region'] == region_selected)]
+
+df_future = df_forecasts[(df_forecasts['Store'] == store_selected) &
+                         (df_forecasts['Item'] == item_selected) &
+                         (df_forecasts['Region'] == region_selected)]
+
+# -----------------------------
+# 3. Tabs Layout
+# -----------------------------
+
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "📈 Forecast Adjustment",
+    "📊 WMAPE Comparison",
+    "📉 Metrics - RSI & MACD",
+    "🎯 Metrics - Std Dev, Bollinger",
+    "🚀 Metrics - Sharpe Ratio",
+    "🧠 Metrics - Volume Impact",
+    "📝 Promo History"
 ])
 
-# Tab 1 - WMAPE Comparison
+# -----------------------------
+# 4. Tab 1 - Forecast Adjustment
+# -----------------------------
+
 with tab1:
-    st.subheader("WMAPE (Weighted MAPE) Comparison")
-    wmape_scores = {}
-    for model in selected_models:
-        forecast = edited_data[model]
-        actual = edited_data['Actual']
-        wmape = np.sum(np.abs(forecast - actual)) / np.sum(actual)
-        wmape_scores[model] = wmape
+    st.title("📈 Forecast and Actuals Viewer")
 
-    wmape_df = pd.DataFrame({
-        'Model': list(wmape_scores.keys()),
-        'WMAPE': list(wmape_scores.values())
-    }).sort_values('WMAPE')
+    # Editable forecasts
+    st.subheader("Edit Forecasts:")
+    for model in range(1,6):
+        df_future[f"Model_{model}_Forecast"] = st.number_input(
+            f"Model {model} Forecast for next week",
+            value=int(df_future.iloc[0][f"Model_{model}_Forecast"]),
+            key=f"forecast_model_{model}"
+        )
 
-    bar_chart = go.Figure(go.Bar(
-        x=wmape_df['Model'],
-        y=wmape_df['WMAPE'],
-        marker_color='indianred'
-    ))
-    bar_chart.update_layout(template="plotly_white", height=500)
-    st.plotly_chart(bar_chart, use_container_width=True)
+    # Merge actuals and forecasts
+    df_plot = pd.concat([df_hist[['Week', 'Actuals', 'Promo', 'Event']], 
+                         df_future[['Week'] + [f"Model_{i}_Forecast" for i in range(1,6)]]], axis=0)
 
-# Tab 2 - Demand Metrics
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot['Actuals'], mode='lines+markers', name='Actuals'))
+
+    for model in range(1,6):
+        fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot.get(f'Model_{model}_Forecast', np.nan),
+                                 mode='lines', name=f'Model {model} Forecast'))
+
+    # Promo and Event bars
+    promo_weeks = df_plot[df_plot['Promo'] == 1]['Week']
+    event_weeks = df_plot[df_plot['Event'] == 1]['Week']
+
+    for week in promo_weeks:
+        fig.add_vrect(x0=week - pd.Timedelta(days=3), x1=week + pd.Timedelta(days=3),
+                      fillcolor="LightGreen", opacity=0.3, line_width=0)
+
+    for week in event_weeks:
+        fig.add_vrect(x0=week - pd.Timedelta(days=3), x1=week + pd.Timedelta(days=3),
+                      fillcolor="LightSkyBlue", opacity=0.3, line_width=0)
+
+    # Moving averages
+    if moving_avg_weeks:
+        for window in moving_avg_weeks:
+            df_plot[f"MA_{window}"] = df_plot['Actuals'].rolling(window=window).mean()
+            fig.add_trace(go.Scatter(x=df_plot['Week'], y=df_plot[f"MA_{window}"],
+                                     mode='lines', name=f'{window}-Week MA', line=dict(dash='dash')))
+
+    fig.update_layout(title="Demand Forecast vs Actuals",
+                      xaxis_title="Week",
+                      yaxis_title="Units",
+                      height=600,
+                      template="plotly_white")
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+# -----------------------------
+# 5. Tab 2 - WMAPE Comparison
+# -----------------------------
+
 with tab2:
-    st.subheader("📊 Demand Metrics")
-    st.metric("Standard Deviation of Weekly Demand", round(edited_data['Actual'].std(),2))
-    st.metric("Average Weekly Demand", round(edited_data['Actual'].mean(),2))
-    st.metric("Demand Range (Max - Min)", round(edited_data['Actual'].max() - edited_data['Actual'].min(),2))
+    st.title("📊 WMAPE Across Models")
 
-# Tab 3 - RSI
+    wmape_scores = {}
+    for model in range(1,6):
+        pred = df_future[f"Model_{model}_Forecast"].values
+        actual = df_hist['Actuals'].values[-len(pred):]
+        wmape = np.sum(np.abs(actual - pred)) / np.sum(actual) if np.sum(actual) != 0 else 0
+        wmape_scores[f'Model {model}'] = wmape
+
+    fig_wmape = go.Figure([go.Bar(x=list(wmape_scores.keys()), y=list(wmape_scores.values()))])
+    fig_wmape.update_layout(title="WMAPE by Model", template="plotly_white")
+
+    st.plotly_chart(fig_wmape, use_container_width=True)
+
+# -----------------------------
+# 6. Tab 3-7: Advanced Metrics
+# -----------------------------
+
 with tab3:
-    st.subheader("📈 Relative Strength Index (RSI)")
-    rsi = ta.momentum.RSIIndicator(edited_data['Actual'], window=14).rsi()
+    st.title("📉 RSI and MACD")
+    df_metrics = df_hist.copy()
+    df_metrics['RSI'] = ta.momentum.RSIIndicator(df_metrics['Actuals']).rsi()
+    macd = ta.trend.MACD(df_metrics['Actuals'])
+    df_metrics['MACD'] = macd.macd()
+    df_metrics['MACD_Signal'] = macd.macd_signal()
+
     fig_rsi = go.Figure()
-    fig_rsi.add_trace(go.Scatter(x=edited_data['Week'], y=rsi, mode='lines', name='RSI'))
-    fig_rsi.update_layout(template="plotly_white", height=500)
+    fig_rsi.add_trace(go.Scatter(x=df_metrics['Week'], y=df_metrics['RSI'], mode='lines', name='RSI'))
+    fig_rsi.update_layout(title="RSI", template="plotly_white")
     st.plotly_chart(fig_rsi, use_container_width=True)
 
-# Tab 4 - MACD
-with tab4:
-    st.subheader("📈 Moving Average Convergence Divergence (MACD)")
-    macd = ta.trend.MACD(edited_data['Actual'])
     fig_macd = go.Figure()
-    fig_macd.add_trace(go.Scatter(x=edited_data['Week'], y=macd.macd(), mode='lines', name='MACD Line'))
-    fig_macd.add_trace(go.Scatter(x=edited_data['Week'], y=macd.macd_signal(), mode='lines', name='Signal Line'))
-    fig_macd.update_layout(template="plotly_white", height=500)
+    fig_macd.add_trace(go.Scatter(x=df_metrics['Week'], y=df_metrics['MACD'], name="MACD"))
+    fig_macd.add_trace(go.Scatter(x=df_metrics['Week'], y=df_metrics['MACD_Signal'], name="Signal"))
+    fig_macd.update_layout(title="MACD", template="plotly_white")
     st.plotly_chart(fig_macd, use_container_width=True)
 
-# Tab 5 - Bollinger Bands
-with tab5:
-    st.subheader("📈 Bollinger Bands")
-    bollinger = ta.volatility.BollingerBands(edited_data['Actual'])
+with tab4:
+    st.title("🎯 Std Dev and Bollinger Bands")
+    df_metrics['StdDev'] = df_metrics['Actuals'].rolling(window=10).std()
+    boll = ta.volatility.BollingerBands(df_metrics['Actuals'])
+    df_metrics['Boll_Upper'] = boll.bollinger_hband()
+    df_metrics['Boll_Lower'] = boll.bollinger_lband()
+
+    fig_std = go.Figure()
+    fig_std.add_trace(go.Scatter(x=df_metrics['Week'], y=df_metrics['StdDev'], mode='lines', name='Std Dev'))
+    fig_std.update_layout(title="Standard Deviation", template="plotly_white")
+    st.plotly_chart(fig_std, use_container_width=True)
+
     fig_boll = go.Figure()
-    fig_boll.add_trace(go.Scatter(x=edited_data['Week'], y=bollinger.bollinger_hband(), mode='lines', name='Upper Band'))
-    fig_boll.add_trace(go.Scatter(x=edited_data['Week'], y=bollinger.bollinger_lband(), mode='lines', name='Lower Band'))
-    fig_boll.add_trace(go.Scatter(x=edited_data['Week'], y=edited_data['Actual'], mode='lines', name='Actual'))
-    fig_boll.update_layout(template="plotly_white", height=500)
+    fig_boll.add_trace(go.Scatter(x=df_metrics['Week'], y=df_metrics['Actuals'], name="Actuals"))
+    fig_boll.add_trace(go.Scatter(x=df_metrics['Week'], y=df_metrics['Boll_Upper'], name="Upper Band"))
+    fig_boll.add_trace(go.Scatter(x=df_metrics['Week'], y=df_metrics['Boll_Lower'], name="Lower Band"))
+    fig_boll.update_layout(title="Bollinger Bands", template="plotly_white")
     st.plotly_chart(fig_boll, use_container_width=True)
 
-# Tab 6 - Sharpe Ratio
+with tab5:
+    st.title("🚀 Sharpe Ratio Analysis")
+    returns = df_hist['Actuals'].pct_change()
+    sharpe_ratio = returns.mean() / returns.std() if returns.std() != 0 else 0
+    st.metric("Sharpe Ratio (Demand Growth Stability)", f"{sharpe_ratio:.2f}")
+
 with tab6:
-    st.subheader("📈 Sharpe Ratio (Demand Stability)")
-    returns = edited_data['Actual'].pct_change().dropna()
-    sharpe_ratio = returns.mean() / returns.std()
-    st.metric("Sharpe Ratio", round(sharpe_ratio, 2))
+    st.title("🧠 Volume Impact of Promotions")
+    promo_impact = df_hist[df_hist['Promo'] == 1]['Actuals'].mean() - df_hist[df_hist['Promo'] == 0]['Actuals'].mean()
+    st.metric("Promo Volume Impact", f"{promo_impact:.1f} Units")
+
+with tab7:
+    st.title("📝 Historical Promo/Event Weeks")
+    promo_table = df_hist[(df_hist['Promo'] == 1) | (df_hist['Event'] == 1)][['Week', 'Promo', 'Event', 'Actuals']]
+    st.dataframe(promo_table)
 
