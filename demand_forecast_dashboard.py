@@ -92,7 +92,6 @@ if 'df_forecasts' not in st.session_state:
 if st.sidebar.button("🔄 Reset Forecasts"):
     # Reset forecast to the original values
     st.session_state.df_forecasts = original_forecasts.copy()
-    st.experimental_rerun()  # Force a re-run to reflect the changes immediately
 
 # -----------------------------
 # 4. Filter Data
